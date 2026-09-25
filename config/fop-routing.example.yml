@@ -1,11 +1,9 @@
-# Copy to config/fop-routing.yml and fill in the real correspondences.
-# These are examples only; they are not loaded automatically.
+# Copy to config/fop-routing.yml to enable these correspondences.
+# Tokens are stored only in .env, never in this file.
 integration:
   kommo:
     fop-mappings:
-      # Prefer enum-id for a select field. It survives renaming the option.
-      - enum-id: 123456
+      - value: "Зелинская"
         fop-id: fop1
-      # Alternatively, use the exact text value (case-sensitive).
-      - value: "Название второго ФОП из Kommo"
+      - value: "Ветров"
         fop-id: fop2

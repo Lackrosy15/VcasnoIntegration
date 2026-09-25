@@ -141,9 +141,9 @@ curl -X POST http://localhost:8080/api/v1/leads/123456/receipts/prepayment \
 | `KOMMO_FOP_FIELD_ID` | Поле ФОП сделки, **2110073** |
 | `KOMMO_PRICE_FIELD_ID` | ID поля цены товара, если не используется стандартный код `PRICE` |
 | `VCHASNO_TEST_TOKEN` | Токен тестовой кассы, без `Bearer` |
-| `VCHASNO_FOP1_TOKEN`, `VCHASNO_FOP2_TOKEN` | Рабочие токены, можно добавить позже |
-| `VCHASNO_FOP*_TAX_GROUP` | Налоговая группа соответствующего ФОП, по умолчанию 2 |
-| `VCHASNO_FOP*_PAYMENT_TYPE` | Средство оплаты соответствующего ФОП, по умолчанию 1 |
+| `VCHASNO_ZELINSKA_TOKEN`, `VCHASNO_VETROV_TOKEN` | Рабочие токены, можно добавить позже |
+| `VCHASNO_ZELINSKA_TAX_GROUP`, `VCHASNO_VETROV_TAX_GROUP` | Налоговая группа соответствующего ФОП, по умолчанию 2 |
+| `VCHASNO_ZELINSKA_PAYMENT_TYPE`, `VCHASNO_VETROV_PAYMENT_TYPE` | Средство оплаты соответствующего ФОП, по умолчанию 1 |
 | `DATA_DIR` | Каталог журнала, по умолчанию `./data` при запуске JAR |
 | `DB_PASSWORD` | Пароль локальной базы H2 |
 | `PORT` | Порт приложения, по умолчанию 8080 |

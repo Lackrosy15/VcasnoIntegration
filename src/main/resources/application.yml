@@ -33,10 +33,10 @@ integration:
       tax-group: 2
       payment-type: 1
     fop1:
-      token: ${VCHASNO_FOP1_TOKEN:}
-      tax-group: ${VCHASNO_FOP1_TAX_GROUP:2}
-      payment-type: ${VCHASNO_FOP1_PAYMENT_TYPE:1}
+      token: ${VCHASNO_ZELINSKA_TOKEN:}
+      tax-group: ${VCHASNO_ZELINSKA_TAX_GROUP:2}
+      payment-type: ${VCHASNO_ZELINSKA_PAYMENT_TYPE:1}
     fop2:
-      token: ${VCHASNO_FOP2_TOKEN:}
-      tax-group: ${VCHASNO_FOP2_TAX_GROUP:2}
-      payment-type: ${VCHASNO_FOP2_PAYMENT_TYPE:1}
+      token: ${VCHASNO_VETROV_TOKEN:}
+      tax-group: ${VCHASNO_VETROV_TAX_GROUP:2}
+      payment-type: ${VCHASNO_VETROV_PAYMENT_TYPE:1}
