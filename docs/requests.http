@@ -1,0 +1,51 @@
+@baseUrl = http://localhost:8080
+@apiKey = replace-with-your-secret
+@leadId = 123456
+@fopId = test
+@webhookSecret = replace-with-KOMMO_WEBHOOK_TOKEN-from-env
+
+### Kommo URL-only webhook: headers and body are unnecessary
+POST {{baseUrl}}/webhooks/kommo/prepayment?key={{webhookSecret}}&leadId={{leadId}}
+
+### Full payment on another lead
+POST {{baseUrl}}/webhooks/kommo/full?key={{webhookSecret}}&leadId={{leadId}}
+
+### Postpayment for the lead with an existing advance
+POST {{baseUrl}}/webhooks/kommo/postpayment?key={{webhookSecret}}&leadId={{leadId}}
+
+### Health
+GET {{baseUrl}}/health
+
+### Automatic FOP selection from field 2110073 (requires configured mappings)
+POST {{baseUrl}}/api/v1/leads/{{leadId}}/receipts/prepayment
+X-API-Key: {{apiKey}}
+
+### Full payment (use a separate lead from the advance/postpayment scenario)
+POST {{baseUrl}}/api/v1/leads/{{leadId}}/receipts/full
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{"fopId":"{{fopId}}"}
+
+### Prepayment
+POST {{baseUrl}}/api/v1/leads/{{leadId}}/receipts/prepayment
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{"fopId":"{{fopId}}"}
+
+### Postpayment
+POST {{baseUrl}}/api/v1/leads/{{leadId}}/receipts/postpayment
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{"fopId":"{{fopId}}"}
+
+### Read operation returned by any create endpoint
+@operationId = replace-with-operationId
+GET {{baseUrl}}/api/v1/operations/{{operationId}}
+X-API-Key: {{apiKey}}
+
+### Resume the same operation after an upstream failure
+POST {{baseUrl}}/api/v1/operations/{{operationId}}/retry
+X-API-Key: {{apiKey}}

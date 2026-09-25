@@ -1,0 +1,15 @@
+services:
+  integration:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+      PORT: 8080
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+    volumes:
+      - receipts:/app/data
+      - ./config:/app/config:ro
+volumes:
+  receipts:

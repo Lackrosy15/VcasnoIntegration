@@ -1,0 +1,11 @@
+# Copy to config/fop-routing.yml and fill in the real correspondences.
+# These are examples only; they are not loaded automatically.
+integration:
+  kommo:
+    fop-mappings:
+      # Prefer enum-id for a select field. It survives renaming the option.
+      - enum-id: 123456
+        fop-id: fop1
+      # Alternatively, use the exact text value (case-sensitive).
+      - value: "Название второго ФОП из Kommo"
+        fop-id: fop2

@@ -1,0 +1,42 @@
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: never
+spring:
+  config:
+    import: optional:file:./.env[.properties],optional:file:./config/fop-routing.yml
+  application:
+    name: VcasnoIntegration
+  datasource:
+    url: jdbc:h2:file:${DATA_DIR:./data}/receipts;DB_CLOSE_ON_EXIT=FALSE;WRITE_DELAY=0
+    username: sa
+    password: ${DB_PASSWORD:}
+  sql:
+    init:
+      mode: always
+integration:
+  api-key: ${INTEGRATION_API_KEY:}
+  webhook-token: ${KOMMO_WEBHOOK_TOKEN:}
+  webhook-fop-id: ${WEBHOOK_FOP_ID:}
+  kommo:
+    base-url: ${KOMMO_BASE_URL:}
+    token: ${KOMMO_TOKEN:}
+    product-catalog-id: ${KOMMO_PRODUCT_CATALOG_ID:0}
+    price-field-id: ${KOMMO_PRICE_FIELD_ID:0}
+    price-field-code: ${KOMMO_PRICE_FIELD_CODE:PRICE}
+    fop-field-id: ${KOMMO_FOP_FIELD_ID:2110073}
+    fop-mappings: []
+  vchasno-url: https://kasa.vchasno.ua
+  cash-registers:
+    test:
+      token: ${VCHASNO_TEST_TOKEN:}
+      tax-group: 2
+      payment-type: 1
+    fop1:
+      token: ${VCHASNO_FOP1_TOKEN:}
+      tax-group: ${VCHASNO_FOP1_TAX_GROUP:2}
+      payment-type: ${VCHASNO_FOP1_PAYMENT_TYPE:1}
+    fop2:
+      token: ${VCHASNO_FOP2_TOKEN:}
+      tax-group: ${VCHASNO_FOP2_TAX_GROUP:2}
+      payment-type: ${VCHASNO_FOP2_PAYMENT_TYPE:1}

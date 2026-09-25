@@ -1,0 +1,11 @@
+target/
+.m2/
+data/
+.env
+.env.*
+!.env.example
+config/fop-routing.yml
+.idea/
+*.iml
+*.log
+docs/*-api.md

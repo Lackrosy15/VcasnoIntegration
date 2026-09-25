@@ -1,0 +1,36 @@
+CREATE TABLE IF NOT EXISTS receipt_operation (
+  id VARCHAR(36) PRIMARY KEY,
+  account VARCHAR(255) NOT NULL,
+  lead_id BIGINT NOT NULL,
+  kind VARCHAR(20) NOT NULL,
+  fop VARCHAR(64) NOT NULL,
+  register_id VARCHAR(100) NOT NULL,
+  tag VARCHAR(100) NOT NULL UNIQUE,
+  amount DECIMAL(18,2) NOT NULL,
+  payload CLOB NOT NULL,
+  prepayment_ref VARCHAR(200) UNIQUE,
+  status VARCHAR(30) NOT NULL,
+  fiscal_number VARCHAR(200),
+  receipt_url VARCHAR(2048),
+  field_synced BOOLEAN NOT NULL DEFAULT FALSE,
+  note_synced BOOLEAN NOT NULL DEFAULT FALSE,
+  last_error VARCHAR(500),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (account, lead_id, kind)
+);
+
+CREATE TABLE IF NOT EXISTS webhook_job (
+  id VARCHAR(36) PRIMARY KEY,
+  account VARCHAR(255) NOT NULL,
+  lead_id BIGINT NOT NULL,
+  kind VARCHAR(20) NOT NULL,
+  fop VARCHAR(64),
+  status VARCHAR(30) NOT NULL,
+  attempts INT NOT NULL DEFAULT 0,
+  operation_id VARCHAR(36),
+  last_error VARCHAR(500),
+  next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (account, lead_id, kind)
+);
