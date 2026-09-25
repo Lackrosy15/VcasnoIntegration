@@ -93,6 +93,38 @@ class IntegrationTest {
                         + "/webhooks/kommo/full?" + query)).method(method, HttpRequest.BodyPublishers.noBody()).build(),
                 HttpResponse.BodyHandlers.ofString());
     }
+    private HttpResponse<String> hookBody(String query, String contentType, String body) throws Exception {
+        return HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                        + "/webhooks/kommo/full?key=local-webhook-secret-at-least-32-characters" + query))
+                .header("Content-Type", contentType).POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+    @Test void kommoFormWebhookSuppliesLeadWithoutUrlPlaceholder() throws Exception {
+        for (String event : List.of("add", "update", "status")) {
+            String body = "account%5Bid%5D=999&leads%5B" + event + "%5D%5B0%5D%5Bid%5D=42"
+                    + "&leads%5B" + event + "%5D%5B0%5D%5Bstatus_id%5D=777";
+            var response = hookBody("", "application/x-www-form-urlencoded", body);
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(JSON.readTree(response.body()).path("leadId").asLong()).isEqualTo(42);
+        }
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM webhook_job", Integer.class)).isEqualTo(1);
+        assertThat(ISSUE_CALLS).hasValue(0);
+    }
+    @Test void kommoJsonWebhookReadsOnlyLeadEntityIds() throws Exception {
+        for (String body : List.of("{\"leads\":{\"status\":[{\"id\":42,\"status_id\":777}]},\"account\":{\"id\":999}}",
+                "{\"lead\":{\"id\":42}}", "{\"leads\":[{\"id\":42}]}")) {
+            var response = hookBody("", "application/json", body);
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(JSON.readTree(response.body()).path("leadId").asLong()).isEqualTo(42);
+        }
+    }
+    @Test void conflictingOrMissingBodyLeadIdsNeverQueueFiscalization() throws Exception {
+        assertThat(hookBody("&leadId=43", "application/json", "{\"lead\":{\"id\":42}}").statusCode()).isEqualTo(400);
+        assertThat(hookBody("", "application/json", "{\"leads\":[{\"id\":42},{\"id\":43}]}").statusCode()).isEqualTo(400);
+        assertThat(hookBody("", "application/json", "{\"account\":{\"id\":42},\"contacts\":[{\"id\":42}]}").statusCode()).isEqualTo(400);
+        assertThat(hookBody("", "application/json", "broken").statusCode()).isEqualTo(400);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM webhook_job", Integer.class)).isZero();
+    }
     @Test void webhookNeedsOnlyUrlAndAcknowledgesBeforeAnyFiscalCall() throws Exception {
         String query = "key=local-webhook-secret-at-least-32-characters&leadId=42";
         HttpResponse<String> first = hook(query, "POST");

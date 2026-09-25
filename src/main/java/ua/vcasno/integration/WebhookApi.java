@@ -7,15 +7,11 @@ import static ua.vcasno.integration.Domain.*;
 @RestController
 public class WebhookApi {
     private final WebhookQueue queue;
-    public WebhookApi(WebhookQueue queue) { this.queue = queue; }
+    private final WebhookLeadId leadIds;
+    public WebhookApi(WebhookQueue queue, WebhookLeadId leadIds) { this.queue = queue; this.leadIds = leadIds; }
     @RequestMapping(value = "/webhooks/kommo/{type:full|prepayment|postpayment}", method = {RequestMethod.GET, RequestMethod.POST})
     public WebhookQueue.Job receive(@PathVariable String type, HttpServletRequest request) {
-        String[] ids = request.getParameterValues("leadId");
-        if (ids == null || ids.length != 1 || !ids[0].matches("[1-9][0-9]{0,18}"))
-            throw new Failure(400, "INVALID_LEAD_ID", "Передайте один положительный leadId в URL");
-        long lead;
-        try { lead = Long.parseLong(ids[0]); }
-        catch (NumberFormatException e) { throw new Failure(400, "INVALID_LEAD_ID", "Некорректный leadId"); }
+        long lead = leadIds.read(request);
         Kind kind = switch (type) {
             case "full" -> Kind.FULL;
             case "prepayment" -> Kind.PREPAYMENT;
