@@ -82,6 +82,21 @@ public class ReceiptService {
             return process(store.get(kommo.account(), id));
         }
     }
+    public Result recover(String id, String receiptUrl) {
+        Operation operation = store.get(kommo.account(), id);
+        synchronized (locks[Math.floorMod(Long.hashCode(operation.leadId()), locks.length)]) {
+            operation = store.get(operation.account(), id);
+            if (operation.fiscalNumber() != null) {
+                if (!operation.fiscalNumber().equals(VchasnoClient.numberFromUrl(receiptUrl)))
+                    throw Failure.conflict("В операции уже сохранён другой чек");
+            } else {
+                Receipt receipt = vchasno.recover(settings.register(operation.fop()), operation, receiptUrl);
+                store.fiscalized(operation, receipt);
+            }
+            // Fiscal identity is persisted before process; recovery never submits a fiscal task.
+            return process(store.get(operation.account(), id));
+        }
+    }
     private Result process(Operation operation) {
         if ("COMPLETED".equals(operation.status())) return Result.of(operation);
         if (operation.fiscalNumber() == null) {

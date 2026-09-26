@@ -77,12 +77,48 @@ class IntegrationTest {
     }
     @AfterAll static void stop() { PROVIDER.stop(0); }
 
+    @Test void receiptUrlAcceptsViewerAndLegacyButRejectsOtherHostsAndPaths() {
+        for (String path : List.of("/c/", "/check-viewer/"))
+            assertThat(VchasnoClient.numberFromUrl("https://kasa.vchasno.ua" + path + "zuusZ8O35Wc"))
+                    .isEqualTo("zuusZ8O35Wc");
+        for (String url : List.of("https://evil.example/check-viewer/abc", "http://kasa.vchasno.ua/check-viewer/abc",
+                "https://kasa.vchasno.ua/check-viewer/", "https://kasa.vchasno.ua/check-viewer/a/b",
+                "https://evil@kasa.vchasno.ua/check-viewer/abc"))
+            assertThatThrownBy(() -> VchasnoClient.numberFromUrl(url)).isInstanceOf(Failure.class);
+    }
+    @Test void recoveryReadsExistingReceiptAndNeverIssuesAgain() throws Exception {
+        failIssueAfterWrite = true;
+        Result pending = service.create(42, "test", Kind.FULL);
+        Operation operation = store.get(kommo.account(), pending.operationId());
+        String url = "https://kasa.vchasno.ua/check-viewer/TEST_" + operation.tag();
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/operations/"
+                + operation.id() + "/recover")).header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(Map.of("receiptUrl", url))));
+        var client = HttpClient.newHttpClient();
+        assertThat(client.send(request.build(), HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(401);
+        var response = client.send(request.header("X-API-Key", "local-test-key").build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(JSON.readTree(response.body()).path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(LINKS.get(FINAL_LINK_FIELD)).isEqualTo(url);
+        assertThat(service.recover(operation.id(), url).status()).isEqualTo("COMPLETED");
+        assertThat(NOTES).hasSize(1);
+        assertThat(ISSUE_CALLS).hasValue(1);
+    }
+    @Test void recoveryRejectsReceiptFromAnotherOperation() {
+        failIssueAfterWrite = true;
+        Result pending = service.create(42, "test", Kind.FULL);
+        assertThatThrownBy(() -> service.recover(pending.operationId(),
+                "https://kasa.vchasno.ua/check-viewer/TEST_wrong-operation")).isInstanceOf(Failure.class);
+        assertThat(service.get(pending.operationId()).fiscalNumber()).isNull();
+        assertThat(LINKS).isEmpty(); assertThat(NOTES).isEmpty();
+        assertThat(ISSUE_CALLS).hasValue(1);
+    }
     @Test void fullFlowWritesCorrectFieldAndNoteAndDeduplicates() {
         Result first = service.create(42, "test", Kind.FULL);
         assertThat(first.status()).isEqualTo("COMPLETED");
         assertThat(first.amount()).isEqualByComparingTo("1740.00");
         assertThat(LINKS.get(FINAL_LINK_FIELD)).isEqualTo(first.receiptUrl());
-        assertThat(NOTES).singleElement().asString().contains("Повна оплата", "1740.00");
+        assertThat(NOTES).singleElement().asString().contains("✅ Чек создан\nФОП: Тестовая касса\nЧек оплаты на 1740.00 грн\nСсылка на чек ➡️ ");
         assertThat(service.create(42, "test", Kind.FULL).operationId()).isEqualTo(first.operationId());
         assertThat(ISSUE_CALLS).hasValue(1);
         assertThatThrownBy(() -> service.create(42, "fop1", Kind.FULL)).isInstanceOf(Failure.class);
@@ -391,8 +427,14 @@ class IntegrationTest {
             if (rejectFiscal) { reply(x, 200, Map.of("res", 1001, "res_action", 3)); return; }
             String tag = body.path("tag").asText();
             JsonNode receipt = RECEIPTS.computeIfAbsent(tag, key -> JSON.valueToTree(Map.of("res", 0, "res_action", 0,
-                    "info", Map.of("fisid", registerId, "doccode", "TEST_" + tag, "qr", "https://kasa.vchasno.ua/c/TEST_" + tag))));
+                    "info", Map.of("fisid", registerId, "doccode", "TEST_" + tag, "qr", "https://kasa.vchasno.ua/check-viewer/TEST_" + tag))));
             reply(x, failIssueAfterWrite ? 500 : 200, receipt);
+        } else if (path.startsWith("/api/v3/check-task/TEST_")) {
+            String number = path.substring(path.lastIndexOf('/') + 1);
+            ObjectNode task = (ObjectNode) ISSUED.getFirst().deepCopy();
+            task.put("device", registerId);
+            task.put("tag", number.substring("TEST_".length()));
+            reply(x, 200, Map.of("fiscal_number", number, "task", task));
         } else if (path.equals("/api/v3/check-task/external-advance")) {
             reply(x, 200, Map.of("fiscal_number", "external-advance", "task", Map.of("device", registerId,
                     "fiscal", Map.of("task", 1, "subtask", 1, "receipt", Map.of("sum", 150)))));

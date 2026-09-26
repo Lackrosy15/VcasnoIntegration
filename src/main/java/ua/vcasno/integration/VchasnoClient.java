@@ -40,6 +40,21 @@ public class VchasnoClient {
             throw new Failure(502, "VCHASNO_INVALID_RECEIPT", "Ответ кассы не содержит ожидаемых реквизитов чека; повторите исходную операцию");
         return new Receipt(number, url);
     }
+    public Receipt recover(Settings.CashRegister register, Operation operation, String url) {
+        String number = numberFromUrl(url);
+        JsonNode response = http.call("VCHASNO", settings.vchasnoUrl(), "/api/v3/check-task/" + number, register.token(), "GET", null);
+        JsonNode task = response.path("task"), fiscal = task.path("fiscal");
+        JsonNode expected = json.readTree(operation.payload()).path("fiscal");
+        if (!number.equals(response.path("fiscal_number").asText())
+                || !operation.registerId().equals(task.path("device").asText())
+                || !operation.tag().equals(task.path("tag").asText())
+                || fiscal.path("task").asInt(-1) != expected.path("task").asInt(-2)
+                || fiscal.path("subtask").asInt(0) != expected.path("subtask").asInt(0)
+                || decimal(fiscal.path("receipt").path("sum").asText(""), "сумма существующего чека", 2)
+                    .compareTo(operation.amount()) != 0)
+            throw Failure.conflict("Существующий чек не соответствует сохранённой операции (номер, касса, tag, тип или сумма)");
+        return new Receipt(number, url);
+    }
     public String validateAdvance(Settings.CashRegister register, String url, String registerId) {
         String number = numberFromUrl(url);
         JsonNode response = http.call("VCHASNO", settings.vchasnoUrl(), "/api/v3/check-task/" + number, register.token(), "GET", null);
@@ -54,8 +69,8 @@ public class VchasnoClient {
         try {
             URI uri = URI.create(url);
             if (!"https".equals(uri.getScheme()) || !"kasa.vchasno.ua".equals(uri.getHost()) || uri.getUserInfo() != null
-                    || uri.getPort() != -1 || !uri.getPath().matches("/c/[A-Za-z0-9_-]+")) throw new IllegalArgumentException();
-            return uri.getPath().substring(3);
+                    || uri.getPort() != -1 || !uri.getPath().matches("/(?:c|check-viewer)/[A-Za-z0-9_-]+")) throw new IllegalArgumentException();
+            return uri.getPath().substring(uri.getPath().lastIndexOf('/') + 1);
         } catch (RuntimeException e) { throw Failure.invalid("Некорректная ссылка на чек Вчасно.Каса"); }
     }
 }

@@ -107,14 +107,27 @@ public class KommoClient {
                 if (note.path("params").path("text").asText("").contains(marker)) return;
             }
             if (!response.path("_links").has("next")) {
-                String text = operation.kind().label + ": створено чек на " + operation.amount().toPlainString()
-                        + " грн. ФОП: " + operation.fop() + ". Фіскальний номер: " + operation.fiscalNumber()
-                        + "\n" + operation.receiptUrl() + "\n" + marker;
+                String type = switch (operation.kind()) {
+                    case FULL -> "оплаты";
+                    case PREPAYMENT -> "предоплаты";
+                    case POSTPAYMENT -> "послеоплаты";
+                };
+                String text = "✅ Чек создан\nФОП: " + fopName(operation.fop())
+                        + "\nЧек " + type + " на " + operation.amount().setScale(2).toPlainString() + " грн"
+                        + "\nСсылка на чек ➡️ " + operation.receiptUrl() + "\n\n" + marker;
                 call("/leads/notes", "POST", List.of(Map.of("entity_id", operation.leadId(), "note_type", "common",
                         "params", Map.of("text", text))));
                 return;
             }
         }
         throw new Failure(502, "NOTE_SCAN_LIMIT", "Не удалось проверить все примечания сделки; требуется ручная проверка");
+    }
+    private String fopName(String id) {
+        return switch (id) {
+            case "fop1" -> "Зелинская";
+            case "fop2" -> "Ветров";
+            case "test" -> "Тестовая касса";
+            default -> id;
+        };
     }
 }

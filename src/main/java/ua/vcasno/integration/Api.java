@@ -27,6 +27,11 @@ public class Api {
     }
     @GetMapping("/api/v1/operations/{id}")
     public Result status(@PathVariable String id) { return receipts.get(id); }
+    public record RecoverRequest(@jakarta.validation.constraints.NotBlank String receiptUrl) {}
+    @PostMapping("/api/v1/operations/{id}/recover")
+    public ResponseEntity<Result> recover(@PathVariable String id, @Valid @RequestBody RecoverRequest request) {
+        return response(receipts.recover(id, request.receiptUrl()));
+    }
     @PostMapping("/api/v1/operations/{id}/retry")
     public ResponseEntity<Result> retry(@PathVariable String id) { return response(receipts.retry(id)); }
     private ResponseEntity<Result> response(Result result) {
