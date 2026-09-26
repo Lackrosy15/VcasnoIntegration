@@ -34,11 +34,12 @@ public class VchasnoClient {
     public Receipt issue(Settings.CashRegister register, Operation operation) {
         JsonNode response = execute(register, json.readTree(operation.payload()));
         JsonNode info = response.path("info");
-        String number = info.path("doccode").asText(""), url = info.path("qr").asText("");
-        if (number.isBlank() || !operation.registerId().equals(info.path("fisid").asText())
-                || !number.equals(numberFromUrl(url)))
+        String number = info.path("doccode").asText("");
+        if (!number.matches("[A-Za-z0-9_-]+") || !operation.registerId().equals(info.path("fisid").asText()))
             throw new Failure(502, "VCHASNO_INVALID_RECEIPT", "Ответ кассы не содержит ожидаемых реквизитов чека; повторите исходную операцию");
-        return new Receipt(number, url);
+        // qr is QR-code content, not the canonical viewer URL. Fiscal identity comes
+        // from the successful response's doccode and the pinned register's fisid.
+        return new Receipt(number, "https://kasa.vchasno.ua/check-viewer/" + number);
     }
     public Receipt recover(Settings.CashRegister register, Operation operation, String url) {
         String number = numberFromUrl(url);

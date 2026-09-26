@@ -46,6 +46,8 @@ class IntegrationTest {
     static volatile boolean failPatch, failNoteAfterWrite, failIssueAfterWrite, rejectFiscal;
     static volatile String registerId = "99990001", cod = "1590.00", productPrice = "870.00";
     static volatile List<Map<String, Object>> fopValues;
+    static volatile String qrOverride;
+    static volatile String receiptNumberOverride, receiptRegisterOverride;
     static {
         try {
             PROVIDER = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -72,11 +74,43 @@ class IntegrationTest {
         db.update("DELETE FROM webhook_job");
         db.update("DELETE FROM receipt_operation"); ISSUED.clear(); RECEIPTS.clear(); NOTES.clear(); LINKS.clear(); ISSUE_CALLS.set(0);
         failPatch = false; failNoteAfterWrite = false; failIssueAfterWrite = false; rejectFiscal = false;
+        qrOverride = null; receiptNumberOverride = null; receiptRegisterOverride = null;
         registerId = "99990001"; cod = "1590.00"; productPrice = "870.00";
         fopValues = List.of(Map.of("enum_id", 901, "value", "Test FOP"));
     }
     @AfterAll static void stop() { PROVIDER.stop(0); }
 
+    @Test void webhookCompletesWithQrThatIsNotAViewerUrl() {
+        qrOverride = "QR content is not a viewer URL";
+        var job = queue.accept(42, Kind.FULL);
+        queue.processNext();
+        var completed = queue.get(job.id());
+        assertThat(completed.status()).isEqualTo("COMPLETED");
+        Result receipt = service.get(completed.operationId());
+        assertThat(receipt.receiptUrl()).isEqualTo("https://kasa.vchasno.ua/check-viewer/" + receipt.fiscalNumber());
+        assertThat(LINKS.get(FINAL_LINK_FIELD)).isEqualTo(receipt.receiptUrl());
+        assertThat(NOTES).singleElement().asString().contains(receipt.receiptUrl());
+        assertThat(ISSUE_CALLS).hasValue(1);
+    }
+    @Test void missingQrDoesNotPreventSavingConfirmedReceipt() {
+        qrOverride = "";
+        assertThat(service.create(42, "test", Kind.FULL).status()).isEqualTo("COMPLETED");
+        assertThat(ISSUE_CALLS).hasValue(1);
+    }
+    @Test void invalidFiscalIdentityStillPreventsSync() {
+        receiptNumberOverride = "../wrong";
+        Result pending = service.create(42, "test", Kind.FULL);
+        assertThat(pending.error()).contains("VCHASNO_INVALID_RECEIPT");
+        assertThat(pending.fiscalNumber()).isNull();
+        assertThat(LINKS).isEmpty(); assertThat(NOTES).isEmpty();
+    }
+    @Test void wrongReceiptRegisterStillPreventsSync() {
+        receiptRegisterOverride = "different-register";
+        Result pending = service.create(42, "test", Kind.FULL);
+        assertThat(pending.error()).contains("VCHASNO_INVALID_RECEIPT");
+        assertThat(pending.fiscalNumber()).isNull();
+        assertThat(LINKS).isEmpty(); assertThat(NOTES).isEmpty();
+    }
     @Test void receiptUrlAcceptsViewerAndLegacyButRejectsOtherHostsAndPaths() {
         for (String path : List.of("/c/", "/check-viewer/"))
             assertThat(VchasnoClient.numberFromUrl("https://kasa.vchasno.ua" + path + "zuusZ8O35Wc"))
@@ -427,7 +461,9 @@ class IntegrationTest {
             if (rejectFiscal) { reply(x, 200, Map.of("res", 1001, "res_action", 3)); return; }
             String tag = body.path("tag").asText();
             JsonNode receipt = RECEIPTS.computeIfAbsent(tag, key -> JSON.valueToTree(Map.of("res", 0, "res_action", 0,
-                    "info", Map.of("fisid", registerId, "doccode", "TEST_" + tag, "qr", "https://kasa.vchasno.ua/check-viewer/TEST_" + tag))));
+                    "info", Map.of("fisid", receiptRegisterOverride == null ? registerId : receiptRegisterOverride,
+                            "doccode", receiptNumberOverride == null ? "TEST_" + tag : receiptNumberOverride,
+                            "qr", qrOverride == null ? "https://kasa.vchasno.ua/check-viewer/TEST_" + tag : qrOverride))));
             reply(x, failIssueAfterWrite ? 500 : 200, receipt);
         } else if (path.startsWith("/api/v3/check-task/TEST_")) {
             String number = path.substring(path.lastIndexOf('/') + 1);
