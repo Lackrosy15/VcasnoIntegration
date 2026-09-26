@@ -45,6 +45,8 @@ public class ReceiptService {
             if (kind == Kind.POSTPAYMENT) {
                 Operation advance = store.find(account, leadId, Kind.PREPAYMENT).orElse(null);
                 if (advance != null) {
+                    if (advance.amount().compareTo(lead.budget().subtract(amount)) != 0)
+                        throw Failure.conflict("Сумма созданной предоплаты не совпадает с бюджетом минус послеоплата");
                     if (advance.fiscalNumber() == null) throw Failure.conflict("Сначала завершите операцию предоплаты");
                     if (!advance.registerId().equals(register.fiscalId())) throw Failure.conflict("Послеоплату нужно оформить на кассу предоплаты");
                     if (!lead.advanceUrl().isBlank() && !advance.fiscalNumber().equals(VchasnoClient.numberFromUrl(lead.advanceUrl())))
@@ -52,7 +54,7 @@ public class ReceiptService {
                     prepaymentNumber = advance.fiscalNumber();
                 } else {
                     if (lead.advanceUrl().isBlank()) throw Failure.invalid("В поле 2112654 отсутствует чек предоплаты");
-                    prepaymentNumber = vchasno.validateAdvance(cashRegister, lead.advanceUrl(), register.fiscalId());
+                    prepaymentNumber = vchasno.validateAdvance(cashRegister, lead.advanceUrl(), register.fiscalId(), lead.budget().subtract(amount));
                 }
             }
             String id = UUID.randomUUID().toString(), tag = "vcasno-" + id;

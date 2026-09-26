@@ -14,18 +14,21 @@ public class ReceiptBuilder {
             throw Failure.invalid("Сумма товаров " + total + " грн не равна бюджету " + lead.budget() + " грн");
         if (lead.products().isEmpty() || lead.products().stream().anyMatch(p -> p.cost().signum() <= 0))
             throw Failure.invalid("Товарные строки должны иметь положительную сумму");
-        if (kind == Kind.PREPAYMENT && lead.budget().compareTo(ADVANCE) < 0)
-            throw Failure.invalid("Для предоплаты бюджет должен быть не меньше 150 грн");
-        if (kind == Kind.POSTPAYMENT && lead.budget().compareTo(ADVANCE) <= 0)
-            throw Failure.invalid("Для послеоплаты бюджет должен быть больше 150 грн");
+        BigDecimal advance = kind == Kind.FULL ? BigDecimal.ZERO : advanceAmount(lead);
         BigDecimal amount = switch (kind) {
             case FULL -> lead.budget();
-            case PREPAYMENT -> ADVANCE;
-            case POSTPAYMENT -> lead.budget().subtract(ADVANCE);
+            case PREPAYMENT -> advance;
+            case POSTPAYMENT -> lead.budget().subtract(advance);
         };
-        if (kind == Kind.POSTPAYMENT && decimal(lead.cod(), "наложенный платёж (2109361)", 2).compareTo(amount) != 0)
-            throw Failure.invalid("Наложенный платёж не равен бюджету минус 150 грн (ожидается " + amount + ")");
+        if (amount.signum() <= 0) throw Failure.invalid("Сумма чека должна быть больше нуля");
         return amount;
+    }
+    public BigDecimal advanceAmount(Lead lead) {
+        BigDecimal advance = lead.cod() == null || lead.cod().isBlank() ? ADVANCE
+                : lead.budget().subtract(decimal(lead.cod(), "наложенный платёж (2109361)", 2));
+        if (advance.signum() <= 0 || advance.compareTo(lead.budget()) > 0)
+            throw Failure.invalid("Предоплата должна быть больше нуля и не превышать бюджет; проверьте поле 2109361");
+        return advance;
     }
     public Map<String, Object> build(Lead lead, Kind kind, Settings.CashRegister register, String tag, String advanceNumber) {
         BigDecimal amount = amount(lead, kind);
@@ -40,14 +43,14 @@ public class ReceiptBuilder {
         String description = String.join("; ", lead.products().stream()
                 .map(p -> p.name() + " × " + p.quantity().stripTrailingZeros().toPlainString() + ", " + p.cost() + " грн").toList());
         if (kind == Kind.PREPAYMENT) {
-            receipt.put("rows", List.of(Map.of("name", "Передплата", "cnt", 0, "price", ADVANCE,
+            receipt.put("rows", List.of(Map.of("name", "Передплата", "cnt", 0, "price", amount,
                     "disc", 0, "taxgrp", register.taxGroup())));
             receipt.put("rows_pre_payment", goods);
             receipt.put("comment_down", "Передплата по товарах: " + description);
         } else {
             if (kind == Kind.POSTPAYMENT) {
                 if (advanceNumber == null || advanceNumber.isBlank()) throw Failure.invalid("Отсутствует чек предоплаты");
-                List<BigDecimal> deductions = allocateAdvance(lead.products(), lead.budget());
+                List<BigDecimal> deductions = allocateAdvance(lead.products(), lead.budget(), lead.budget().subtract(amount));
                 for (int i = 0; i < goods.size(); i++) {
                     goods.get(i).put("disc", deductions.get(i));
                     goods.get(i).put("disc_apply_type", 1);
@@ -67,13 +70,13 @@ public class ReceiptBuilder {
         return payload;
     }
     // Allocate exact kopecks proportionally, retaining at least one kopeck on every row.
-    static List<BigDecimal> allocateAdvance(List<Product> products, BigDecimal total) {
-        long remaining = ADVANCE.movePointRight(2).longValueExact();
+    static List<BigDecimal> allocateAdvance(List<Product> products, BigDecimal total, BigDecimal advance) {
+        long remaining = advance.movePointRight(2).longValueExact();
         long[] allocations = new long[products.size()];
         long[] capacities = new long[products.size()];
         for (int i = 0; i < products.size(); i++) {
             capacities[i] = products.get(i).cost().movePointRight(2).longValueExact() - 1;
-            long share = ADVANCE.multiply(products.get(i).cost()).divide(total, 2, RoundingMode.DOWN).movePointRight(2).longValueExact();
+            long share = advance.multiply(products.get(i).cost()).divide(total, 2, RoundingMode.DOWN).movePointRight(2).longValueExact();
             allocations[i] = Math.min(share, capacities[i]); remaining -= allocations[i];
         }
         while (remaining > 0) {

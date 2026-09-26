@@ -56,14 +56,14 @@ public class VchasnoClient {
             throw Failure.conflict("Существующий чек не соответствует сохранённой операции (номер, касса, tag, тип или сумма)");
         return new Receipt(number, url);
     }
-    public String validateAdvance(Settings.CashRegister register, String url, String registerId) {
+    public String validateAdvance(Settings.CashRegister register, String url, String registerId, java.math.BigDecimal expectedAmount) {
         String number = numberFromUrl(url);
         JsonNode response = http.call("VCHASNO", settings.vchasnoUrl(), "/api/v3/check-task/" + number, register.token(), "GET", null);
         JsonNode task = response.path("task"), fiscal = task.path("fiscal");
         if (!number.equals(response.path("fiscal_number").asText()) || !registerId.equals(task.path("device").asText())
                 || fiscal.path("task").asInt() != 1 || fiscal.path("subtask").asInt() != 1
-                || decimal(fiscal.path("receipt").path("sum").asText(""), "сумма чека предоплаты", 2).compareTo(ADVANCE) != 0)
-            throw Failure.invalid("Ссылка должна указывать на чек предоплаты 150 грн, выпущенный этой кассой");
+                || decimal(fiscal.path("receipt").path("sum").asText(""), "сумма чека предоплаты", 2).compareTo(expectedAmount) != 0)
+            throw Failure.invalid("Ссылка должна указывать на чек предоплаты " + expectedAmount + " грн, выпущенный этой кассой");
         return number;
     }
     public static String numberFromUrl(String url) {

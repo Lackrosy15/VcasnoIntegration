@@ -393,7 +393,7 @@ class IntegrationTest {
     @Test void codMismatchAndDifferentRegisterStopPostpayment() {
         service.create(42, "test", Kind.PREPAYMENT);
         cod = "1591";
-        assertThatThrownBy(() -> service.create(42, "test", Kind.POSTPAYMENT)).isInstanceOf(Failure.class).hasMessageContaining("Наложенный");
+        assertThatThrownBy(() -> service.create(42, "test", Kind.POSTPAYMENT)).isInstanceOf(Failure.class).hasMessageContaining("Сумма созданной предоплаты");
         cod = "1590"; registerId = "99990002";
         assertThatThrownBy(() -> service.create(42, "test", Kind.POSTPAYMENT)).isInstanceOf(Failure.class).hasMessageContaining("кассу предоплаты");
         assertThat(ISSUE_CALLS).hasValue(1);
@@ -403,6 +403,23 @@ class IntegrationTest {
         Result result = service.create(42, "test", Kind.POSTPAYMENT);
         assertThat(result.status()).isEqualTo("COMPLETED");
         assertThat(ISSUED.getFirst().path("post_payment_of_check_fn").asText()).isEqualTo("external-advance");
+    }
+    @Test void variablePrepaymentAndPostpaymentCompleteAndSumToBudget() {
+        cod = "1400";
+        Result pre = service.create(42, "test", Kind.PREPAYMENT);
+        Result post = service.create(42, "test", Kind.POSTPAYMENT);
+        assertThat(pre.status()).isEqualTo("COMPLETED");
+        assertThat(post.status()).isEqualTo("COMPLETED");
+        assertThat(pre.amount()).isEqualByComparingTo("340");
+        assertThat(post.amount()).isEqualByComparingTo("1400");
+        assertThat(ISSUED.get(1).at("/fiscal/receipt/rows/0/disc").decimalValue()).isEqualByComparingTo("340");
+        assertThat(NOTES).hasSize(2);
+    }
+    @Test void externalAdvanceMustMatchVariableAmount() {
+        cod = "1400";
+        LINKS.put(ADVANCE_LINK_FIELD, "https://kasa.vchasno.ua/c/external-advance");
+        assertThatThrownBy(() -> service.create(42, "test", Kind.POSTPAYMENT)).isInstanceOf(Failure.class);
+        assertThat(ISSUE_CALLS).hasValue(0);
     }
     @Test void concurrentDuplicateRequestsIssueOnce() throws Exception {
         try (ExecutorService workers = Executors.newFixedThreadPool(4)) {

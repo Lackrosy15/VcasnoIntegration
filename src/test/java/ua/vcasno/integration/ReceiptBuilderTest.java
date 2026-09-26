@@ -43,13 +43,13 @@ class ReceiptBuilderTest {
     }
     @Test void proportionalAllocationAlwaysAccountsForEveryKopeck() {
         List<Product> products = List.of(product("a", "1", "100.01"), product("b", "1", "100.02"), product("c", "1", "100.03"));
-        List<BigDecimal> discounts = ReceiptBuilder.allocateAdvance(products, new BigDecimal("300.06"));
+        List<BigDecimal> discounts = ReceiptBuilder.allocateAdvance(products, new BigDecimal("300.06"), ADVANCE);
         assertThat(discounts.stream().reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("150.00");
         for (int i = 0; i < discounts.size(); i++) assertThat(discounts.get(i)).isLessThan(products.get(i).cost());
     }
     @Test void tinyProductNeverBecomesFree() {
         List<Product> products = List.of(product("a", "1", "0.01"), product("b", "1", "150.01"));
-        assertThat(ReceiptBuilder.allocateAdvance(products, new BigDecimal("150.02"))).containsExactly(new BigDecimal("0.00"), new BigDecimal("150.00"));
+        assertThat(ReceiptBuilder.allocateAdvance(products, new BigDecimal("150.02"), ADVANCE)).containsExactly(new BigDecimal("0.00"), new BigDecimal("150.00"));
     }
     @Test void fractionalQuantityIsRoundedOnlyAtRowTotal() {
         Lead lead = lead("174.00", "24.00", product("Товар", "0.200", "870.00"));
@@ -58,10 +58,29 @@ class ReceiptBuilderTest {
     @Test void mismatchedBudgetOrCodStopsReceipt() {
         assertThatThrownBy(() -> builder.amount(lead("1000", "", product("a", "1", "1100")), Kind.FULL))
                 .isInstanceOf(Failure.class).hasMessageContaining("не равна бюджету");
-        assertThatThrownBy(() -> builder.amount(lead("1740", "1589.99", product("a", "2", "870")), Kind.POSTPAYMENT))
-                .isInstanceOf(Failure.class).hasMessageContaining("Наложенный платёж");
-        assertThatThrownBy(() -> builder.amount(lead("1740", "", product("a", "2", "870")), Kind.POSTPAYMENT))
-                .isInstanceOf(Failure.class);
+        assertThat(builder.amount(lead("1740", "1589.99", product("a", "2", "870")), Kind.POSTPAYMENT)).isEqualByComparingTo("1589.99");
+        assertThat(builder.amount(lead("1740", "", product("a", "2", "870")), Kind.POSTPAYMENT)).isEqualByComparingTo("1590");
+    }
+    @Test void variableAdvanceChangesRowsAndPayments() {
+        Lead lead = lead("1000", "700,25", product("a", "1", "400"), product("b", "1", "600"));
+        JsonNode pre = json.valueToTree(builder.build(lead, Kind.PREPAYMENT, register, "a", null));
+        assertThat(pre.at("/fiscal/receipt/rows/0/price").decimalValue()).isEqualByComparingTo("299.75");
+        assertThat(pre.at("/fiscal/receipt/pays/0/sum").decimalValue()).isEqualByComparingTo("299.75");
+        JsonNode post = json.valueToTree(builder.build(lead, Kind.POSTPAYMENT, register, "b", "advance"));
+        assertThat(post.at("/fiscal/receipt/sum").decimalValue()).isEqualByComparingTo("700.25");
+        assertThat(post.at("/fiscal/receipt/rows/0/disc").decimalValue()
+                .add(post.at("/fiscal/receipt/rows/1/disc").decimalValue())).isEqualByComparingTo("299.75");
+    }
+    @Test void emptyCodDefaultsButInvalidCodDoesNot() {
+        for (String cod : new String[]{null, "", "  "}) {
+            Lead lead = lead("1000", cod, product("a", "1", "1000"));
+            assertThat(builder.amount(lead, Kind.PREPAYMENT)).isEqualByComparingTo("150");
+            assertThat(builder.amount(lead, Kind.POSTPAYMENT)).isEqualByComparingTo("850");
+        }
+        for (String cod : List.of("-1", "1001", "1000", "oops", "700.001"))
+            for (Kind kind : List.of(Kind.PREPAYMENT, Kind.POSTPAYMENT))
+                assertThatThrownBy(() -> builder.amount(lead("1000", cod, product("a", "1", "1000")), kind)).isInstanceOf(Failure.class);
+        assertThat(builder.amount(lead("1000", "0", product("a", "1", "1000")), Kind.PREPAYMENT)).isEqualByComparingTo("1000");
     }
     @Test void rejectsInsufficientBudgetAndExtraPrecision() {
         assertThatThrownBy(() -> builder.amount(lead("149", "", product("a", "1", "149")), Kind.PREPAYMENT)).isInstanceOf(Failure.class);

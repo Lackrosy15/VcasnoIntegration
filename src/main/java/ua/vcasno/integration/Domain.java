@@ -44,6 +44,8 @@ public final class Domain {
             if ((id > 0 && field.path("field_id").asLong() == id)
                     || (id == 0 && code != null && code.equals(field.path("field_code").asText()))) {
                 JsonNode values = field.path("values");
+                if (id == COD_FIELD && (values.isEmpty() || (values.size() == 1 && values.path(0).path("value").isNull())))
+                    return "";
                 if (values.size() != 1 || values.path(0).path("value").isNull())
                     throw Failure.invalid("Поле " + (id > 0 ? id : code) + " должно содержать одно значение");
                 return values.path(0).path("value").asText("");
