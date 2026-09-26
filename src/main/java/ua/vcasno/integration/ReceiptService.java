@@ -75,6 +75,7 @@ public class ReceiptService {
             throw Failure.conflict("Для сделки уже начата послеоплата");
     }
     public Result get(String id) { return Result.of(store.get(kommo.account(), id)); }
+    public java.util.List<Result> forLead(long leadId) { return store.forLead(kommo.account(), leadId); }
     public Result retry(String id) {
         Operation operation = store.get(kommo.account(), id);
         synchronized (locks[Math.floorMod(Long.hashCode(operation.leadId()), locks.length)]) {

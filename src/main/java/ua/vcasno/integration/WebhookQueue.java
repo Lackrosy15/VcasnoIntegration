@@ -41,6 +41,10 @@ public class WebhookQueue {
         return db.query("SELECT * FROM webhook_job WHERE account=? AND id=?", mapper, kommo.account(), id).stream()
                 .findFirst().orElseThrow(() -> new Failure(404, "JOB_NOT_FOUND", "Вебхук не найден"));
     }
+    public java.util.List<Job> forLead(long leadId) {
+        return db.query("SELECT * FROM webhook_job WHERE account=? AND lead_id=? ORDER BY created_at", mapper,
+                kommo.account(), leadId);
+    }
     public Job retry(String id) {
         Job job = get(id);
         if (job.status().equals("ACTION_REQUIRED"))

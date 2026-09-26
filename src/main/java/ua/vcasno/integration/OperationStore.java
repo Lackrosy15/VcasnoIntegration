@@ -15,6 +15,10 @@ public class OperationStore {
             rs.getString("status"), rs.getString("fiscal_number"), rs.getString("receipt_url"),
             rs.getBoolean("field_synced"), rs.getBoolean("note_synced"), rs.getString("last_error"));
     public OperationStore(JdbcTemplate db) { this.db = db; }
+    public java.util.List<Result> forLead(String account, long leadId) {
+        return db.query("SELECT * FROM receipt_operation WHERE account=? AND lead_id=? ORDER BY created_at", mapper,
+                account, leadId).stream().map(Result::of).toList();
+    }
     public Optional<Operation> find(String account, long leadId, Kind kind) {
         return db.query("SELECT * FROM receipt_operation WHERE account=? AND lead_id=? AND kind=?", mapper,
                 account, leadId, kind.name()).stream().findFirst();

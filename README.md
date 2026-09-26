@@ -64,6 +64,7 @@ Kommo получает **200** сразу после сохранения зад
 | `POST /api/v1/leads/{leadId}/receipts/prepayment` | Чек на **150 грн**, ссылка в поле **2112654** |
 | `POST /api/v1/leads/{leadId}/receipts/postpayment` | Чек на **бюджет − 150 грн**, ссылка в поле **2112656** |
 | `GET /api/v1/operations/{operationId}` | Сохранённый статус без побочных действий |
+| `GET /api/v1/leads/{leadId}/receipts/status` | Все задания вебхуков и операции сделки с сохранёнными ошибками; только чтение |
 | `POST /api/v1/operations/{operationId}/retry` | Продолжить ту же операцию после устранения ошибки |
 | `GET /health` | Доступность приложения; не проверяет внешние API |
 

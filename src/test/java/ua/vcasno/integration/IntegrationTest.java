@@ -93,6 +93,22 @@ class IntegrationTest {
                         + "/webhooks/kommo/full?" + query)).method(method, HttpRequest.BodyPublishers.noBody()).build(),
                 HttpResponse.BodyHandlers.ofString());
     }
+    @Test void diagnosticsReadsStoredFailureWithoutRetryAndRequiresApiKey() throws Exception {
+        failPatch = true;
+        var job = queue.accept(42, Kind.FULL);
+        queue.processNext();
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/leads/42/receipts/status")).GET();
+        HttpClient client = HttpClient.newHttpClient();
+        assertThat(client.send(request.build(), HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(401);
+        var response = client.send(request.header("X-API-Key", "local-test-key").build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        JsonNode body = JSON.readTree(response.body());
+        assertThat(body.path("webhookJobs").path(0).path("id").asText()).isEqualTo(job.id());
+        assertThat(body.path("operations").path(0).path("status").asText()).isEqualTo("SYNC_PENDING");
+        assertThat(body.path("operations").path(0).path("error").asText()).contains("KOMMO_HTTP_ERROR");
+        assertThat(response.body()).doesNotContain("cash-test-token", "kommo-test-token", "payload");
+        assertThat(ISSUE_CALLS).hasValue(1);
+    }
     private HttpResponse<String> hookBody(String query, String contentType, String body) throws Exception {
         return HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port
                         + "/webhooks/kommo/full?key=local-webhook-secret-at-least-32-characters" + query))
