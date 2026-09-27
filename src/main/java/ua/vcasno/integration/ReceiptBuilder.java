@@ -53,6 +53,7 @@ public class ReceiptBuilder {
                 List<BigDecimal> deductions = allocateAdvance(lead.products(), lead.budget(), lead.budget().subtract(amount));
                 for (int i = 0; i < goods.size(); i++) {
                     goods.get(i).put("disc", deductions.get(i));
+                    goods.get(i).put("disc_name", "Передплата");
                     goods.get(i).put("disc_apply_type", 1);
                 }
                 receipt.put("comment_down", "Післяплата по товарах: " + description + ". Чек передплати: " + advanceNumber);
