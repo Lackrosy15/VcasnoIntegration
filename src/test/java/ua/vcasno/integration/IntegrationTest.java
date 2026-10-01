@@ -380,6 +380,8 @@ class IntegrationTest {
         rejectFiscal = true;
         Result result = service.create(42, "test", Kind.FULL);
         assertThat(result.status()).isEqualTo("ACTION_REQUIRED");
+        assertThat(result.error()).contains("Тестовая причина отказа", "[REDACTED]")
+                .doesNotContain("cash-test-token", "\n");
         assertThat(result.fiscalNumber()).isNull();
         assertThat(LINKS).isEmpty(); assertThat(NOTES).isEmpty();
     }
@@ -475,7 +477,8 @@ class IntegrationTest {
                 reply(x, 200, Map.of("res", 0, "res_action", 0, "info", Map.of("fisid", registerId, "isFis", 0))); return;
             }
             ISSUE_CALLS.incrementAndGet(); ISSUED.add(body);
-            if (rejectFiscal) { reply(x, 200, Map.of("res", 1001, "res_action", 3)); return; }
+            if (rejectFiscal) { reply(x, 200, Map.of("res", 1001, "res_action", 3,
+                    "errortxt", "Тестовая причина отказа\ncash-test-token")); return; }
             String tag = body.path("tag").asText();
             JsonNode receipt = RECEIPTS.computeIfAbsent(tag, key -> JSON.valueToTree(Map.of("res", 0, "res_action", 0,
                     "info", Map.of("fisid", receiptRegisterOverride == null ? registerId : receiptRegisterOverride,

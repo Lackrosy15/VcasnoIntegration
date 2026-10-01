@@ -20,9 +20,17 @@ public class VchasnoClient {
         if (!response.path("res").isIntegralNumber() || !response.path("res_action").isIntegralNumber())
             throw new Failure(502, "VCHASNO_INVALID_RESPONSE", "Касса не вернула статус операции; повторите исходный запрос");
         int code = response.path("res").asInt(), action = response.path("res_action").asInt();
-        if (code != 0 || action != 0)
+        if (code != 0 || action != 0) {
+            String detail = response.path("errortxt").asText("");
+            if (register.token() != null && !register.token().isBlank())
+                detail = detail.replace(register.token(), "[REDACTED]");
+            detail = detail.replaceAll("[\\p{Cntrl}]", " ").strip();
+            detail = detail.substring(0, Math.min(detail.length(), 280));
             throw new Failure(action == 3 ? 422 : 502, action == 3 ? "VCHASNO_ACTION_REQUIRED" : "VCHASNO_RETRY_REQUIRED",
-                    "Касса: res=" + code + ", res_action=" + action + (action == 3 ? "; требуется проверка кассы и данных" : "; повторите исходную операцию"));
+                    "Касса: res=" + code + ", res_action=" + action
+                            + (detail.isBlank() ? "" : "; " + detail)
+                            + (action == 3 ? "; требуется проверка кассы и данных" : "; повторите исходную операцию"));
+        }
         return response;
     }
     public Register register(Settings.CashRegister register) {
