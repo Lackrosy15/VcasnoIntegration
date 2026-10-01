@@ -56,7 +56,7 @@ class ReceiptBuilderTest {
         assertThat(builder.amount(lead, Kind.POSTPAYMENT)).isEqualByComparingTo("24.00");
     }
     @Test void mismatchedBudgetOrCodStopsReceipt() {
-        assertThatThrownBy(() -> builder.amount(lead("1000", "", product("a", "1", "1100")), Kind.FULL))
+        assertThatThrownBy(() -> builder.amount(lead("1200", "", product("a", "1", "1100")), Kind.FULL))
                 .isInstanceOf(Failure.class).hasMessageContaining("не равна бюджету");
         assertThat(builder.amount(lead("1740", "1589.99", product("a", "2", "870")), Kind.POSTPAYMENT)).isEqualByComparingTo("1589.99");
         assertThat(builder.amount(lead("1740", "", product("a", "2", "870")), Kind.POSTPAYMENT)).isEqualByComparingTo("1590");
@@ -91,5 +91,21 @@ class ReceiptBuilderTest {
         assertThat(VchasnoClient.numberFromUrl("https://kasa.vchasno.ua/c/TEST_abc?sm=150")).isEqualTo("TEST_abc");
         assertThatThrownBy(() -> VchasnoClient.numberFromUrl("https://evil.test/c/abc")).isInstanceOf(Failure.class);
         assertThatThrownBy(() -> VchasnoClient.numberFromUrl("https://kasa.vchasno.ua/c/a/b")).isInstanceOf(Failure.class);
+    }
+    @Test void fullPaymentDiscountMatchesBudgetAndKeepsOriginalPrices() {
+        JsonNode payload = json.valueToTree(builder.build(lead("2080", "", product("a", "1", "2190")), Kind.FULL, register, "discount", null));
+        assertThat(payload.at("/fiscal/receipt/sum").decimalValue()).isEqualByComparingTo("2080");
+        assertThat(payload.at("/fiscal/receipt/pays/0/sum").decimalValue()).isEqualByComparingTo("2080");
+        assertThat(payload.at("/fiscal/receipt/rows/0/price").decimalValue()).isEqualByComparingTo("2190");
+        assertThat(payload.at("/fiscal/receipt/rows/0/disc").decimalValue()).isEqualByComparingTo("110");
+        assertThat(payload.at("/fiscal/receipt/rows/0/disc_name").asText()).isEqualTo("Знижка");
+        assertThat(payload.at("/fiscal/receipt/rows/0/disc_apply_type").isMissingNode()).isTrue();
+    }
+    @Test void fullPaymentDiscountAcrossRowsAccountsForKopecks() {
+        JsonNode payload = json.valueToTree(builder.build(lead("200.03", "", product("a", "1", "100.01"), product("b", "1", "200.02")), Kind.FULL, register, "discount", null));
+        BigDecimal net = BigDecimal.ZERO;
+        for (JsonNode row : payload.at("/fiscal/receipt/rows"))
+            net = net.add(row.path("cost").decimalValue().subtract(row.path("disc").decimalValue()));
+        assertThat(net).isEqualByComparingTo("200.03");
     }
 }

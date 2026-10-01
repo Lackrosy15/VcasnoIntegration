@@ -10,7 +10,7 @@ import static ua.vcasno.integration.Domain.*;
 public class ReceiptBuilder {
     public BigDecimal amount(Lead lead, Kind kind) {
         BigDecimal total = lead.products().stream().map(Product::cost).reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (total.compareTo(lead.budget()) != 0)
+        if (total.compareTo(lead.budget()) != 0 && !(kind == Kind.FULL && total.compareTo(lead.budget()) > 0))
             throw Failure.invalid("Сумма товаров " + total + " грн не равна бюджету " + lead.budget() + " грн");
         if (lead.products().isEmpty() || lead.products().stream().anyMatch(p -> p.cost().signum() <= 0))
             throw Failure.invalid("Товарные строки должны иметь положительную сумму");
@@ -48,6 +48,16 @@ public class ReceiptBuilder {
             receipt.put("rows_pre_payment", goods);
             receipt.put("comment_down", "Передплата по товарах: " + description);
         } else {
+            if (kind == Kind.FULL) {
+                BigDecimal total = lead.products().stream().map(Product::cost).reduce(BigDecimal.ZERO, BigDecimal::add);
+                if (total.compareTo(lead.budget()) > 0) {
+                    List<BigDecimal> discounts = allocateAdvance(lead.products(), total, total.subtract(lead.budget()));
+                    for (int i = 0; i < goods.size(); i++) {
+                        goods.get(i).put("disc", discounts.get(i));
+                        goods.get(i).put("disc_name", "Знижка");
+                    }
+                }
+            }
             if (kind == Kind.POSTPAYMENT) {
                 if (advanceNumber == null || advanceNumber.isBlank()) throw Failure.invalid("Отсутствует чек предоплаты");
                 List<BigDecimal> deductions = allocateAdvance(lead.products(), lead.budget(), lead.budget().subtract(amount));

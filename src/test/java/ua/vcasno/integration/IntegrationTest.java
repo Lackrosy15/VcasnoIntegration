@@ -386,7 +386,7 @@ class IntegrationTest {
         assertThat(LINKS).isEmpty(); assertThat(NOTES).isEmpty();
     }
     @Test void invalidBudgetAndMissingAdvanceNeverReachFiscalIssue() {
-        productPrice = "871";
+        productPrice = "869";
         assertThatThrownBy(() -> service.create(42, "test", Kind.FULL)).isInstanceOf(Failure.class);
         productPrice = "870";
         assertThatThrownBy(() -> service.create(42, "test", Kind.POSTPAYMENT)).isInstanceOf(Failure.class);
